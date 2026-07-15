@@ -111,8 +111,19 @@ Then drop one of these into any slide:
 ```
 
 The container just needs a size — the FX auto-sizes a canvas to fit with
-`ResizeObserver` + DPR correction. Colors read your theme (`--accent`,
-`--accent-2`, `--ok`, `--warn`, `--danger`).
+`ResizeObserver` + DPR correction.
+
+Colors come from your theme's decorative accents — `--accent`, `--accent-2`,
+`--accent-3` — and nothing else. The status tokens `--good` / `--warn` / `--bad`
+are deliberately *not* in the pool: they carry meaning (charts, diffs, pros and
+cons), and firing green/amber/red out of a confetti cannon both means nothing
+and fights restrained themes. On `minimal-white`, whose accents are three greys,
+the FX come out greyscale — that is correct, not broken.
+
+Effects re-initialise automatically when the theme changes (a canvas samples its
+colors once at init, so unlike CSS it cannot re-skin itself). If you write your
+own FX, read the pool with `U.palette(el)` and index it as `pal[i % pal.length]`
+— never assume a fixed length.
 
 | name | effect | use case | trigger |
 |---|---|---|---|

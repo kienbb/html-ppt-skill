@@ -215,31 +215,21 @@
     return new Promise(r => setTimeout(r, 50)).then(() => waitForFx(name, (tries || 0) + 1));
   }
 
-  function clearFx() {
-    if (typeof window.__hpxReinit === 'function') {
-      /* stop() the running handle via the runtime's own bookkeeping */
-      const h = window.__hpxActive && window.__hpxActive.get(fxHost);
-      if (h && typeof h.stop === 'function') { try { h.stop(); } catch (e) {} }
-      if (window.__hpxActive) window.__hpxActive.delete(fxHost);
-    }
-    /* Several FX modules append their own DOM (a number overlay, a text wrapper)
-     * and don't remove it in stop(). Wiping the host is the only way to be sure
-     * one effect doesn't leave debris behind for the next. */
-    fxHost.innerHTML = '';
-    fxHost.removeAttribute('data-fx');
-  }
+  const slideEl = document.querySelector('.slide');
 
+  /* Swap the effect by changing the attribute and letting fx-runtime do the
+   * work. This page must NOT call HPX[name] itself: fx-runtime already owns
+   * every [data-fx] host — it inits them on slide activation and re-inits them
+   * on a theme swap — so a second creator here would leave an untracked canvas
+   * behind on every change, and the stale one paints the previous theme. */
   function setFx(name) {
-    clearFx();
-    if (!name) return;
+    if (window.__hpxStop) window.__hpxStop(slideEl);   /* attribute still set, so it's found */
+    if (!name) { fxHost.removeAttribute('data-fx'); return; }
     fxHost.setAttribute('data-fx', name);
     waitForFx(name).then((ok) => {
       if (!ok) { console.warn('[anim-stage] fx module never loaded:', name); return; }
       if (fxHost.getAttribute('data-fx') !== name) return; /* superseded while waiting */
-      try {
-        const handle = window.HPX[name](fxHost, {}) || { stop() {} };
-        window.__hpxActive.set(fxHost, handle);
-      } catch (e) { console.warn('[anim-stage] fx failed:', name, e); }
+      if (window.__hpxInit) window.__hpxInit(slideEl);
     });
   }
 
