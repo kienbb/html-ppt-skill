@@ -68,7 +68,11 @@
       document.body.setAttribute('data-preview', '1');
       /* Auto-detect theme base path for theme switching in preview mode */
       function getPreviewThemeBase() {
-        const base = document.documentElement.getAttribute('data-theme-base');
+        /* Decks in this repo declare data-theme-base on <body>, but a deck may
+         * just as reasonably put it on <html> — accept either before falling
+         * back to deriving the directory from the theme <link> itself. */
+        const base = document.documentElement.getAttribute('data-theme-base')
+                  || document.body.getAttribute('data-theme-base');
         if (base) return base;
         const tl = document.getElementById('theme-link');
         if (tl) {
@@ -80,14 +84,40 @@
       }
       const previewThemeBase = getPreviewThemeBase();
 
-      /* Listen for postMessage from parent presenter window:
-       *  - preview-goto: switch visible slide WITHOUT reloading
-       *  - preview-theme: switch theme CSS link to match audience window */
+      /* Re-trigger every entry animation on a slide. CSS animations only run once
+       * per element, so replaying means dropping the class, forcing a reflow to
+       * flush the style change, then putting it back. Without the reflow the
+       * browser coalesces remove+add into a no-op and nothing moves. */
+      function replayAnims(slide) {
+        if (!slide) return;
+        const targets = [slide].concat(Array.from(slide.querySelectorAll('*')));
+        targets.forEach((el) => {
+          const animClasses = Array.from(el.classList).filter(c => c.indexOf('anim-') === 0);
+          if (!animClasses.length) return;
+          animClasses.forEach(c => el.classList.remove(c));
+          void el.offsetWidth;
+          animClasses.forEach(c => el.classList.add(c));
+        });
+        /* Canvas FX are driven by fx-runtime.js, which exposes a reinit hook. */
+        if (typeof window.__hpxReinit === 'function') window.__hpxReinit(slide);
+      }
+
+      /* Listen for postMessage from a parent window (presenter view, or the
+       * preview site under /preview):
+       *  - preview-goto:   switch visible slide WITHOUT reloading
+       *  - preview-theme:  switch theme CSS link to match audience window
+       *  - preview-replay: re-run the current slide's entry animations
+       * Language switching rides the same channel but is owned by i18n.js. */
       window.addEventListener('message', function(e) {
         if (!e.data) return;
         if (e.data.type === 'preview-goto') {
           const n = parseInt(e.data.idx, 10);
-          if (n >= 0 && n < slides.length) showSlide(n);
+          if (n >= 0 && n < slides.length) {
+            showSlide(n);
+            replayAnims(slides[n]);
+          }
+        } else if (e.data.type === 'preview-replay') {
+          replayAnims(document.querySelector('.slide.is-active'));
         } else if (e.data.type === 'preview-theme' && e.data.name) {
           let link = document.getElementById('theme-link');
           if (!link) {
