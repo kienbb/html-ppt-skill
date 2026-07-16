@@ -33,8 +33,12 @@
   ];
 
   const LANGS = ['zh', 'en', 'vi'];
-  const SLIDE_COUNT = 8;          /* examples/demo-deck has 8 slides */
   const DECK = '../examples/demo-deck/index.html';
+
+  /* Starting guess only — the real count is read out of the deck on first load,
+     so adding a slide to demo-deck doesn't silently leave it with no dot and
+     unreachable by arrow. */
+  let SLIDE_COUNT = 8;
 
   /* The deck's design resolution. Must match .stage-shadow / #stage in app.css. */
   const DESIGN_W = 1280;
@@ -79,16 +83,25 @@
     else if (q.get('anim')) { state.kind = 'css'; state.anim = q.get('anim'); }
   }
 
+  /* replaceState rather than location.hash, so holding a key doesn't stack up a
+     history entry per repeat — and coalesced to one write per frame, because
+     Firefox rate-limits the History API (~200 calls / 10s) and key autorepeat
+     blows through that in seconds, after which it starts dropping writes and
+     the URL silently stops matching the screen. */
+  let hashPending = 0;
+
   function writeHash() {
-    const q = new URLSearchParams();
-    q.set('stage', state.stage);
-    q.set('theme', state.theme);
-    q.set('lang', state.lang);
-    if (state.stage === 'theme') q.set('slide', String(state.slide));
-    else q.set(state.kind === 'fx' ? 'fx' : 'anim', state.anim);
-    /* replaceState, not location.hash — this fires many times a second while
-       arrowing through themes and must not stack up browser history entries. */
-    history.replaceState(null, '', '#' + q.toString());
+    if (hashPending) return;
+    hashPending = requestAnimationFrame(() => {
+      hashPending = 0;
+      const q = new URLSearchParams();
+      q.set('stage', state.stage);
+      q.set('theme', state.theme);
+      q.set('lang', state.lang);
+      if (state.stage === 'theme') q.set('slide', String(state.slide));
+      else q.set(state.kind === 'fx' ? 'fx' : 'anim', state.anim);
+      history.replaceState(null, '', '#' + q.toString());
+    });
   }
 
   /* ------------------------------------------------------- iframe plumbing */
@@ -100,9 +113,12 @@
 
   function frameURL() {
     if (state.stage === 'theme') {
-      /* runtime.js reads ?preview=N (1-based) and ?lang is read by i18n.js.
-         Both are only bootstrap values; later changes go over postMessage. */
-      return DECK + '?preview=' + state.slide + '&lang=' + state.lang;
+      /* runtime.js reads ?preview=N (1-based) and ?theme=; ?lang is read by
+         i18n.js. All three are bootstrap values only — later changes go over
+         postMessage — but carrying them means "open in a new tab" hands over
+         exactly what you were looking at instead of the deck's own default. */
+      return DECK + '?preview=' + state.slide + '&theme=' + state.theme +
+             '&lang=' + state.lang;
     }
     const key = state.kind === 'fx' ? 'fx' : 'anim';
     return 'anim-stage.html?theme=' + state.theme + '&lang=' + state.lang +
@@ -118,12 +134,28 @@
 
   stageEl.addEventListener('load', function () {
     frameReady = true;
-    /* The URL already carried lang (and, on the anim stage, theme+effect), but
-       the deck stage boots on its own hard-coded theme — so push the full state
-       once the runtime inside is listening. */
+    /* frameURL() already carries theme/lang/effect, so the iframe boots correct
+       on its own; re-sending theme here costs nothing and keeps the deck stage
+       right even if a deck ignores ?theme=. */
     send({ type: 'preview-theme', name: state.theme });
-    if (state.stage === 'theme') send({ type: 'preview-goto', idx: state.slide - 1 });
+    if (state.stage === 'theme') {
+      syncSlideCount();
+      send({ type: 'preview-goto', idx: state.slide - 1 });
+    }
   });
+
+  /* Ask the deck how many slides it actually has. Same-origin, so this is just
+     a DOM read. */
+  function syncSlideCount() {
+    let n = 0;
+    try { n = stageEl.contentDocument.querySelectorAll('.deck .slide').length; } catch (e) { return; }
+    if (!n || n === SLIDE_COUNT) return;
+    SLIDE_COUNT = n;
+    buildDots();
+    if (state.slide > SLIDE_COUNT) state.slide = SLIDE_COUNT;
+    paintDots();
+    paintStatus();
+  }
 
   /* --------------------------------------------------------------- actions */
 
@@ -273,6 +305,7 @@
 
   function buildDots() {
     const wrap = $('#slide-dots');
+    wrap.textContent = '';   /* rebuilt whenever the deck reports a new count */
     for (let i = 1; i <= SLIDE_COUNT; i++) {
       const b = document.createElement('button');
       b.className = 'dot';

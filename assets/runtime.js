@@ -107,6 +107,25 @@
       }
       const previewThemeBase = getPreviewThemeBase();
 
+      function applyPreviewTheme(name) {
+        let link = document.getElementById('theme-link');
+        if (!link) {
+          link = document.createElement('link');
+          link.rel = 'stylesheet';
+          link.id = 'theme-link';
+          document.head.appendChild(link);
+        }
+        link.href = previewThemeBase + name + '.css';
+        document.documentElement.setAttribute('data-theme', name);
+      }
+
+      /* ?theme= makes a preview URL self-contained, so it can be opened or
+       * shared on its own rather than only ever being driven by postMessage
+       * from a parent that already knows the theme. Restricted to a plain
+       * theme-name charset: this value is concatenated into a stylesheet path. */
+      const urlTheme = /[?&]theme=([A-Za-z0-9_-]+)/.exec(location.search || '');
+      if (urlTheme) applyPreviewTheme(urlTheme[1]);
+
       /* Re-trigger every entry animation on a slide. A CSS animation only runs
        * once per element, so replaying means dropping the class, forcing a
        * reflow to flush the style change, then putting it back — without the
@@ -156,15 +175,7 @@
         } else if (e.data.type === 'preview-replay') {
           replayAnims(document.querySelector('.slide.is-active'));
         } else if (e.data.type === 'preview-theme' && e.data.name) {
-          let link = document.getElementById('theme-link');
-          if (!link) {
-            link = document.createElement('link');
-            link.rel = 'stylesheet';
-            link.id = 'theme-link';
-            document.head.appendChild(link);
-          }
-          link.href = previewThemeBase + e.data.name + '.css';
-          document.documentElement.setAttribute('data-theme', e.data.name);
+          applyPreviewTheme(e.data.name);
         }
       });
       /* Signal to parent that preview iframe is ready */

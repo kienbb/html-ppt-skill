@@ -189,17 +189,25 @@
         T(k) + '</span>').join('');
   }
 
-  /* --- counter-up is JS-driven; animations.css only ships the marker class. --- */
+  /* counter-up is JS-driven; animations.css only ships the .counter marker.
+   *
+   * This is a deliberate ~10-line twin of animateCounters() in runtime.js, kept
+   * because this rig does not load runtime.js at all (no navigation, no
+   * keyboard, no chrome to own) and pulling it in just for this would put a
+   * second owner on the one slide — the exact shape of bug that made canvas FX
+   * paint stale themes. It mirrors runtime's contract on purpose: same 1200ms
+   * default, same data-dur override, same ease-out cubic. If that contract
+   * changes, change it here too. */
   function runCounter() {
     const el = document.getElementById('ctr');
     if (!el) return;
-    const to = parseInt(el.getAttribute('data-to'), 10) || 0;
-    const dur = 1400;
+    const to = parseFloat(el.getAttribute('data-to')) || 0;
+    const dur = parseInt(el.getAttribute('data-dur') || '1200', 10);
     const t0 = performance.now();
     (function tick(t) {
       const p = Math.min(1, (t - t0) / dur);
-      /* ease-out cubic — fast start, soft landing */
-      el.textContent = Math.round(to * (1 - Math.pow(1 - p, 3)));
+      const v = to * (1 - Math.pow(1 - p, 3));   /* ease-out cubic */
+      el.textContent = (to % 1 === 0) ? Math.round(v) : v.toFixed(1);
       if (p < 1) requestAnimationFrame(tick);
     })(t0);
   }
@@ -221,8 +229,18 @@
    * work. This page must NOT call HPX[name] itself: fx-runtime already owns
    * every [data-fx] host — it inits them on slide activation and re-inits them
    * on a theme swap — so a second creator here would leave an untracked canvas
-   * behind on every change, and the stale one paints the previous theme. */
-  function setFx(name) {
+   * behind on every change, and the stale one paints the previous theme.
+   *
+   * Tearing an effect down and reseeding it from frame zero is only correct
+   * when the effect actually changed. render() also runs on a language switch
+   * (and twice on a cold load, since i18n announces at DOMContentLoaded), and
+   * restarting a running firework because someone pressed L is just a glitch —
+   * no fx module reads i18n. `force` is for an explicit replay. */
+  let mountedFx = null;
+
+  function setFx(name, force) {
+    if (name === mountedFx && !force) return;
+    mountedFx = name;
     if (window.__hpxStop) window.__hpxStop(slideEl);   /* attribute still set, so it's found */
     if (!name) { fxHost.removeAttribute('data-fx'); return; }
     fxHost.setAttribute('data-fx', name);
@@ -238,12 +256,15 @@
   const stage = document.getElementById('stage');
   const label = document.getElementById('label');
 
-  function render() {
+  /* `force` restarts a canvas effect even if it is already the mounted one —
+     only an explicit replay wants that. A CSS animation needs no such flag:
+     rebuilding the subject markup below hands it fresh elements either way. */
+  function render(force) {
     if (state.fx) {
       /* In FX mode the canvas IS the subject; keep a neutral caption over it. */
       stage.innerHTML = '<h1 class="h1" style="font-size:72px">' + T('stage.h1') + '</h1>';
       label.textContent = 'data-fx="' + state.fx + '"';
-      setFx(state.fx);
+      setFx(state.fx, force);
       return;
     }
     setFx(null);
@@ -271,11 +292,15 @@
     if (d.type === 'preview-theme' && d.name) setTheme(d.name);
     else if (d.type === 'preview-anim') { state.fx = null; state.anim = d.name; render(); }
     else if (d.type === 'preview-fx')   { state.fx = d.name; render(); }
-    else if (d.type === 'preview-replay') render();
+    else if (d.type === 'preview-replay') render(true);
   });
 
-  /* A language change replaces every string on the stage, so just rebuild. */
-  document.addEventListener('hpx:i18n', render);
+  /* A language change replaces every string on the stage, so just rebuild.
+     Wrapped, not passed by reference: as a listener, render would receive the
+     Event as its `force` argument, and an Event is truthy — which would restart
+     the running canvas effect on every language switch, the exact thing `force`
+     exists to prevent. */
+  document.addEventListener('hpx:i18n', () => render());
 
   render();
   try { parent.postMessage({ type: 'preview-ready' }, '*'); } catch (e) {}

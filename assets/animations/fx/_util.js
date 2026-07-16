@@ -12,6 +12,17 @@
   U.accent2 = (el, fb) => U.css(el, '--accent-2', fb || '#22d3ee');
   U.accent3 = (el, fb) => U.css(el, '--accent-3', fb || '#f0abfc');
   U.text = (el, fb) => U.css(el, '--text-1', fb || '#eaeaf2');
+  U.bg = (el, fb) => U.css(el, '--bg', fb || '#0b0c10');
+
+  /* The per-frame wash that turns moving particles into trails: instead of
+   * clearing the canvas, paint the page's own background over it at low alpha
+   * so older frames sink into the slide.
+   *
+   * It has to be the *theme's* background. A hard-coded black wash is invisible
+   * on a dark deck and therefore looks correct — but on minimal-white it fogs a
+   * white slide to solid black within a second or two, taking the headline with
+   * it. Same bug, opposite sign. */
+  U.fade = (el, a) => U.alpha(U.bg(el, '#0b0c10'), a);
 
   /* Decorative color pool for particles, nodes, sparks and rings.
    *

@@ -121,9 +121,25 @@ and fights restrained themes. On `minimal-white`, whose accents are three greys,
 the FX come out greyscale — that is correct, not broken.
 
 Effects re-initialise automatically when the theme changes (a canvas samples its
-colors once at init, so unlike CSS it cannot re-skin itself). If you write your
-own FX, read the pool with `U.palette(el)` and index it as `pal[i % pal.length]`
-— never assume a fixed length.
+colors once at init, so unlike CSS it cannot re-skin itself).
+
+Writing your own FX — the helpers on `window.HPX._u`:
+
+| helper | gives you |
+|---|---|
+| `U.palette(el)` | the decorative pool. Index it `pal[i % pal.length]` — never assume a length |
+| `U.accent/accent2/accent3(el)` | one accent each |
+| `U.text(el)` / `U.bg(el)` | `--text-1` / `--bg` |
+| `U.alpha(color, a)` | re-alpha any theme color, for glows and strokes |
+| `U.fade(el, a)` | the per-frame trail wash — **use this, never `rgba(0,0,0,a)`** |
+
+That last one matters. Trails are made by painting over the canvas each frame
+instead of clearing it, and washing with hard-coded black looks right on a dark
+deck while fogging `minimal-white` to solid black within a second. `U.fade` uses
+the theme's own `--bg`.
+
+The one deliberate exception is `matrix-rain`, whose green is the reference
+rather than a palette choice.
 
 | name | effect | use case | trigger |
 |---|---|---|---|

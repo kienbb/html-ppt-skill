@@ -131,7 +131,13 @@
     else announce();
 
     /* The preview site drives language from a parent window over the same
-     * postMessage channel runtime.js already uses for theme/slide control. */
+     * postMessage channel runtime.js already uses for theme/slide control.
+     *
+     * No e.origin check, deliberately: the only authority this grants a sender
+     * is "pick one of the deck's own translation files", the deck is a static
+     * page with no session or private data, and decks are opened from disk
+     * (origin "null") as often as from a server, which an origin allowlist
+     * would break. Do add one if you ever put privileged state behind this. */
     window.addEventListener('message', function (e) {
       if (e.data && e.data.type === 'preview-lang' && e.data.lang) setLang(e.data.lang);
     });
