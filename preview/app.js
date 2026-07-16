@@ -36,9 +36,16 @@
   const SLIDE_COUNT = 8;          /* examples/demo-deck has 8 slides */
   const DECK = '../examples/demo-deck/index.html';
 
-  /* Flat [{id,label,note,...}] across all groups, in rail order — this is what
-     the T key and any index-based cycling walk through. */
-  let THEMES = [];
+  /* The deck's design resolution. Must match .stage-shadow / #stage in app.css. */
+  const DESIGN_W = 1280;
+  const DESIGN_H = 720;
+
+  /* Flat, in rail order — this is the order the T key cycles through. Built once
+     in buildThemeRail(); the id list and lookup map exist so the keyboard path
+     neither rebuilds an array nor linear-scans on every repeat. */
+  const THEMES = [];
+  const THEME_IDS = [];
+  const THEME_BY_ID = new Map();
 
   const state = {
     stage: 'theme',      /* 'theme' | 'anim' */
@@ -156,11 +163,7 @@
   function setStage(stage) {
     if (state.stage === stage) return;
     state.stage = stage;
-    $('#slide-group').hidden = (stage !== 'theme');
-    $('#anim-group').hidden = (stage !== 'anim');
-    $('#k-nav').textContent = (stage === 'theme') ? 'slide' : 'effect';
-    document.querySelectorAll('.seg-btn[data-stage]').forEach((b) =>
-      b.classList.toggle('is-active', b.dataset.stage === stage));
+    paintStage();
     writeHash();
     paintStatus();
     mount();   /* the only case that legitimately reloads */
@@ -176,22 +179,23 @@
     const prev = { stage: state.stage, theme: state.theme, lang: state.lang,
                    slide: state.slide, anim: state.anim, kind: state.kind };
     readHash();
-    if (!THEMES.some((t) => t.id === state.theme)) state.theme = prev.theme;
+    if (!THEME_BY_ID.has(state.theme)) state.theme = prev.theme;
 
     if (state.stage !== prev.stage) {
-      /* setStage does the remount + chrome swap, but it early-returns when the
-         stage is unchanged — so hand it the old value and let it transition. */
-      const target = state.stage;
-      state.stage = prev.stage;
-      setStage(target);
-    } else if (state.theme !== prev.theme) { setTheme(state.theme, { scroll: true }); }
-
-    if (state.lang !== prev.lang) setLang(state.lang);
-    if (state.stage === 'theme' && state.slide !== prev.slide) setSlide(state.slide);
-    if (state.stage === 'anim' && (state.anim !== prev.anim || state.kind !== prev.kind)) {
-      setAnim(state.kind, state.anim);
+      /* readHash has already moved state, so remount straight from it —
+         frameURL() carries theme/lang/effect and the load handler pushes the
+         rest. Routing through setStage() here would mean shoving state back to
+         its old value first just to get past its early-return. */
+      paintStage();
+      mount();
+    } else {
+      if (state.theme !== prev.theme) setTheme(state.theme, { scroll: true });
+      if (state.lang !== prev.lang) setLang(state.lang);
+      if (state.slide !== prev.slide) setSlide(state.slide);
+      if (state.anim !== prev.anim || state.kind !== prev.kind) setAnim(state.kind, state.anim);
     }
-    paintThemeRail(); paintStatus();
+    repaintAll();
+    writeHash();
   }
 
   /* ----------------------------------------------------------- theme rail */
@@ -209,6 +213,8 @@
 
       group.themes.forEach((t) => {
         THEMES.push(t);
+        THEME_IDS.push(t.id);
+        THEME_BY_ID.set(t.id, t);
         const b = document.createElement('button');
         b.className = 'theme-btn';
         b.dataset.id = t.id;
@@ -310,8 +316,23 @@
       b.classList.toggle('is-active', b.dataset.lang === state.lang));
   }
 
+  /* Which controls belong to the current stage. Shared by the tab buttons, the
+     hash handler and boot — all three used to spell this out separately. */
+  function paintStage() {
+    $('#slide-group').hidden = (state.stage !== 'theme');
+    $('#anim-group').hidden = (state.stage !== 'anim');
+    $('#k-nav').textContent = (state.stage === 'theme') ? 'slide' : 'effect';
+    document.querySelectorAll('.seg-btn[data-stage]').forEach((b) =>
+      b.classList.toggle('is-active', b.dataset.stage === state.stage));
+  }
+
+  function repaintAll() {
+    paintStage(); paintThemeRail(); paintDots();
+    paintAnimSelect(); paintLang(); paintStatus();
+  }
+
   function paintStatus() {
-    const t = THEMES.find((x) => x.id === state.theme);
+    const t = THEME_BY_ID.get(state.theme);
     $('#s-theme').textContent = state.theme;
     $('#s-note').textContent = t ? '— ' + t.label : '';
     $('#s-ctx').textContent = (state.stage === 'theme')
@@ -322,19 +343,24 @@
   /* --------------------------------------------------------------- scaling */
 
   /* The deck is authored at 1280×720 and must be *shown* at 1280×720, then
-     scaled as a whole — so what you review is the real layout, not a reflow. */
+     scaled as a whole — so what you review is the real layout, not a reflow.
+     Refs are resolved once: a ResizeObserver fires continuously while a window
+     is being dragged, and this is the only thing on that path. */
+  const stageWrap = $('#stage-wrap');
+  const stageShadow = $('#stage-shadow');
+
   function fitStage() {
-    const wrap = $('#stage-wrap');
     const pad = 44;
-    const w = wrap.clientWidth - pad;
-    const h = wrap.clientHeight - pad;
-    const scale = Math.max(0.1, Math.min(w / 1280, h / 720));
-    $('#stage-shadow').style.transform = 'scale(' + scale + ')';
+    const scale = Math.max(0.1, Math.min(
+      (stageWrap.clientWidth - pad) / DESIGN_W,
+      (stageWrap.clientHeight - pad) / DESIGN_H
+    ));
+    stageShadow.style.transform = 'scale(' + scale + ')';
     /* Reserve the *scaled* footprint so flex centring has honest numbers to
        work with; transform alone doesn't affect layout size. */
-    $('#stage-shadow').style.margin =
-      Math.round((720 * scale - 720) / 2) + 'px ' +
-      Math.round((1280 * scale - 1280) / 2) + 'px';
+    stageShadow.style.margin =
+      Math.round(DESIGN_H * (scale - 1) / 2) + 'px ' +
+      Math.round(DESIGN_W * (scale - 1) / 2) + 'px';
   }
 
   /* ------------------------------------------------------------- keyboard */
@@ -361,8 +387,7 @@
       }
       e.preventDefault();
     } else if (k === 't') {
-      const ids = THEMES.map((t) => t.id);
-      setTheme(cycle(ids, state.theme, e.shiftKey ? -1 : 1), { scroll: true });
+      setTheme(cycle(THEME_IDS, state.theme, e.shiftKey ? -1 : 1), { scroll: true });
     } else if (k === 'l') {
       setLang(cycle(LANGS, state.lang, e.shiftKey ? -1 : 1));
     } else if (k === 'r') {
@@ -382,18 +407,13 @@
       buildThemeRail(data.groups);
 
       /* A stale or hand-edited hash shouldn't leave the rail with nothing lit. */
-      if (!THEMES.some((t) => t.id === state.theme)) state.theme = THEMES[0].id;
+      if (!THEME_BY_ID.has(state.theme)) state.theme = THEME_IDS[0];
 
       buildDots();
       buildAnimSelect();
 
-      $('#slide-group').hidden = (state.stage !== 'theme');
-      $('#anim-group').hidden = (state.stage !== 'anim');
-      $('#k-nav').textContent = (state.stage === 'theme') ? 'slide' : 'effect';
-      document.querySelectorAll('.seg-btn[data-stage]').forEach((b) => {
-        b.classList.toggle('is-active', b.dataset.stage === state.stage);
-        b.addEventListener('click', () => setStage(b.dataset.stage));
-      });
+      document.querySelectorAll('.seg-btn[data-stage]').forEach((b) =>
+        b.addEventListener('click', () => setStage(b.dataset.stage)));
       document.querySelectorAll('.seg-btn[data-lang]').forEach((b) =>
         b.addEventListener('click', () => setLang(b.dataset.lang)));
 
@@ -401,16 +421,12 @@
       $('#replay').addEventListener('click', replay);
       $('#open-new').addEventListener('click', () => window.open(frameURL(), '_blank', 'noopener'));
 
-      paintThemeRail();
-      paintDots();
-      paintAnimSelect();
-      paintLang();
-      paintStatus();
+      repaintAll();
       scrollThemeIntoView(state.theme);
 
       mount();
       fitStage();
-      new ResizeObserver(fitStage).observe($('#stage-wrap'));
+      new ResizeObserver(fitStage).observe(stageWrap);
       addEventListener('keydown', onKey);
       addEventListener('hashchange', applyHash);
     })

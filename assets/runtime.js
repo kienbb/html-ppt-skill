@@ -107,20 +107,31 @@
       }
       const previewThemeBase = getPreviewThemeBase();
 
-      /* Re-trigger every entry animation on a slide. CSS animations only run once
-       * per element, so replaying means dropping the class, forcing a reflow to
-       * flush the style change, then putting it back. Without the reflow the
-       * browser coalesces remove+add into a no-op and nothing moves. */
+      /* Re-trigger every entry animation on a slide. A CSS animation only runs
+       * once per element, so replaying means dropping the class, forcing a
+       * reflow to flush the style change, then putting it back — without the
+       * reflow the browser coalesces remove+add into a no-op and nothing moves.
+       *
+       * The reflow is taken ONCE, after every class is stripped and before any
+       * is restored. Reflowing per element instead would thrash layout once per
+       * animated node for no benefit: a single forced layout already flushes
+       * the whole document. */
       function replayAnims(slide) {
         if (!slide) return;
-        const targets = [slide].concat(Array.from(slide.querySelectorAll('*')));
-        targets.forEach((el) => {
-          const animClasses = Array.from(el.classList).filter(c => c.indexOf('anim-') === 0);
-          if (!animClasses.length) return;
-          animClasses.forEach(c => el.classList.remove(c));
-          void el.offsetWidth;
-          animClasses.forEach(c => el.classList.add(c));
+
+        /* [class*="anim-"] is a cheap pre-filter that skips the vast majority of
+         * a slide's DOM; the exact prefix test below is what actually decides,
+         * since the selector also matches e.g. "no-anim-x". */
+        const work = [];
+        [slide].concat(Array.from(slide.querySelectorAll('[class*="anim-"]'))).forEach((el) => {
+          const cls = Array.from(el.classList).filter(c => c.indexOf('anim-') === 0);
+          if (cls.length) work.push({ el: el, cls: cls });
         });
+
+        work.forEach(w => w.cls.forEach(c => w.el.classList.remove(c)));
+        if (work.length) void slide.offsetWidth;
+        work.forEach(w => w.cls.forEach(c => w.el.classList.add(c)));
+
         /* Canvas FX are driven by fx-runtime.js, which exposes a reinit hook. */
         if (typeof window.__hpxReinit === 'function') window.__hpxReinit(slide);
         /* Not every animation is a class: a .counter slide (demo-deck slide 4)
