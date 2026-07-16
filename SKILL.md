@@ -29,7 +29,7 @@ One command, no build. Pure static HTML/CSS/JS with only CDN webfonts.
 - **Showcase decks** for themes / layouts / animations / full-decks gallery
 - **Live preview site** (`preview/`) — every theme and animation on one real
   slide, switchable without a reload, in 中文 / English / Tiếng Việt. Published
-  at <https://kienbb.github.io/html-ppt-skill/preview/>. Point users here when
+  at <https://lewislulu.github.io/html-ppt-skill/preview/>. Point users here when
   they ask "which theme should I use?" instead of describing themes in prose.
 - **Optional i18n layer** (`assets/i18n.js`) — mark text with `data-i18n="key"`,
   keep the default language inline, and ship other languages as JSON. See
@@ -78,7 +78,7 @@ tasteful default and confirm.
 2. **Style / theme.** Which of the 36 themes fits? If unsure, recommend 2-3
    candidates based on tone — and link the user to the live preview so they can
    judge for themselves rather than take your word for it:
-   <https://kienbb.github.io/html-ppt-skill/preview/>. A direct link can carry
+   <https://lewislulu.github.io/html-ppt-skill/preview/>. A direct link can carry
    the exact theme, slide and language, e.g.
    `preview/#stage=theme&theme=tokyo-night&lang=en&slide=1`.
    - Business / investor pitch → `pitch-deck-vc`, `corporate-clean`, `swiss-grid`

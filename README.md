@@ -10,7 +10,7 @@
 **License:** MIT
 **中文文档:** [README.zh-CN.md](README.zh-CN.md)
 
-### 🔍 [Live preview → kienbb.github.io/html-ppt-skill](https://kienbb.github.io/html-ppt-skill/preview/)
+### 🔍 [Live preview → lewislulu.github.io/html-ppt-skill](https://lewislulu.github.io/html-ppt-skill/preview/)
 
 Browse every theme and animation on a real slide, in the browser, with no
 install. Pick any of the **36 themes** and the slide re-skins instantly — no

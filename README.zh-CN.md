@@ -9,7 +9,7 @@
 **协议：** MIT
 **English docs:** [README.md](README.md)
 
-### 🔍 [在线预览 → kienbb.github.io/html-ppt-skill](https://kienbb.github.io/html-ppt-skill/preview/)
+### 🔍 [在线预览 → lewislulu.github.io/html-ppt-skill](https://lewislulu.github.io/html-ppt-skill/preview/)
 
 不用安装，直接在浏览器里用真实幻灯片浏览全部主题和动效。**36 套主题**任意点选，
 幻灯片**当场换肤、不刷新**——因为一套主题无非就是一组 `:root` 变量。同一页还能在
